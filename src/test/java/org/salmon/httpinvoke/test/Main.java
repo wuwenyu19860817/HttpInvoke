@@ -24,7 +24,7 @@ public class Main {
 //		customHttpClient.setDnsMap(dnsMap); 
 		customHttpClient.init();
 		
-		System.out.println(customHttpClient.get("https://www.baidu.com"));
+		System.out.println(customHttpClient.get("https://www.baidu2.com"));
 
 //		customHttpClient.get("http://www.baidu.com");
 //		customHttpClient.get("http://www.sina.com");
