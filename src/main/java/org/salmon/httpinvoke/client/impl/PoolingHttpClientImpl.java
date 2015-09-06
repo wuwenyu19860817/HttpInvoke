@@ -89,7 +89,7 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 	private long idleTime = 5 * 1000;
 	/** time to live */
 	private long keepAliveDuration = 5 * 1000;
- 
+
 	/** interval time to evict connection */
 	private long evictDelay = 5 * 1000;
 	/** time to connect */
@@ -109,33 +109,33 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 
 	private ScheduledFuture<?> future = null;
 
-	/**默认不重试*/
+	/** 默认不重试 */
 	private int maxRetries = 0;
- 
+
 	public void init() throws Exception {
 		retryHandler = new HttpRequestRetryHandler() {
 			public boolean retryRequest(IOException exception,
-					int executionCount, HttpContext context) { 
-				if (executionCount >= maxRetries+1) { 
+					int executionCount, HttpContext context) {
+				if (executionCount >= maxRetries + 1) {
 					return false;
 				}
-				if (exception instanceof InterruptedIOException) { 
+				if (exception instanceof InterruptedIOException) {
 					return false;
 				}
-				if (exception instanceof UnknownHostException) { 
+				if (exception instanceof UnknownHostException) {
 					return false;
 				}
-				if (exception instanceof ConnectTimeoutException) { 
+				if (exception instanceof ConnectTimeoutException) {
 					return false;
 				}
-				if (exception instanceof SSLException) { 
+				if (exception instanceof SSLException) {
 					return false;
 				}
 				HttpClientContext clientContext = HttpClientContext
 						.adapt(context);
 				HttpRequest request = clientContext.getRequest();
 				boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
-				if (idempotent) { 
+				if (idempotent) {
 					return true;
 				}
 				return false;
@@ -375,5 +375,5 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 
 	public void setMaxRetries(int maxRetries) {
 		this.maxRetries = maxRetries;
-	} 
+	}
 }
