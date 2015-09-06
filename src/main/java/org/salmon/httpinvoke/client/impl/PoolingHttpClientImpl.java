@@ -1,8 +1,8 @@
 package org.salmon.httpinvoke.client.impl;
 
+
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.security.KeyStore;
@@ -16,29 +16,23 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.Consts;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.conn.routing.HttpRoute;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -49,7 +43,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.pool.PoolStats;
-import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.salmon.httpinvoke.client.CustomHttpClient;
 import org.salmon.httpinvoke.dns.CustomDynamicDnsResolver;
@@ -67,106 +60,62 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 	private static Log log = LogFactory.getLog(PoolingHttpClientImpl.class);
 	private CloseableHttpClient httpClient;
 	private ResponseHandler<String> responseHandler;
-	private HttpRequestRetryHandler retryHandler;
 	private PoolingHttpClientConnectionManager poolingHttpClientConnectionManager;
 	private Map<String, String> dnsMap;
 
-	/** TLS or SSL */
-	private String protocol;
-	/** the path of KeyStore which used to create SSL connections */
-	private String keyStorePath;
-	/** password of KeyStore */
-	private String keyStorePwd;
-	/** type of KeyStore */
-	private String keyStoreType;
+    /** TLS or SSL */
+    private String protocol;
+    /** the path of KeyStore which used to create SSL connections */
+    private String keyStorePath;
+    /** password of KeyStore */
+    private String keyStorePwd;
+    /** type of KeyStore */
+    private String keyStoreType;
 
 	/** max connections per route */
-	private int defaultMaxPerRoute = 2 * Runtime.getRuntime()
-			.availableProcessors();
+	private int defaultMaxPerRoute = 2 * Runtime.getRuntime().availableProcessors();
 	/** max connections in all */
 	private int maxTotal = 10 * 2 * Runtime.getRuntime().availableProcessors();
 	/** the idle time(ms) of connections to be closed */
 	private long idleTime = 5 * 1000;
 	/** time to live */
 	private long keepAliveDuration = 5 * 1000;
-
 	/** interval time to evict connection */
 	private long evictDelay = 5 * 1000;
 	/** time to connect */
 	private int connectTimeout = 5 * 1000;
 	/**
-	 * 'http.socket.timeout': defines the socket timeout (SO_TIMEOUT) in
-	 * milliseconds, which is the timeout for waiting for data or, put
-	 * differently, a maximum period inactivity between two consecutive data
-	 * packets). A timeout value of zero is interpreted as an infinite timeout.
-	 * This parameter expects a value of type java.lang.Integer. If this
-	 * parameter is not set read operations will not time out (infinite
-	 * timeout).
+	 * 'http.socket.timeout': defines the socket timeout (SO_TIMEOUT) in milliseconds, which is the timeout for waiting
+	 * for data or, put differently, a maximum period inactivity between two consecutive data packets). A timeout value
+	 * of zero is interpreted as an infinite timeout. This parameter expects a value of type java.lang.Integer. If this
+	 * parameter is not set read operations will not time out (infinite timeout).
 	 */
 	private int socketTimeout = 5 * 1000;
-
+	
 	private ScheduledExecutorService schedule = null;
-
+	
 	private ScheduledFuture<?> future = null;
 
-	/** 默认不重试 */
-	private int maxRetries = 0;
-
 	public void init() throws Exception {
-		retryHandler = new HttpRequestRetryHandler() {
-			public boolean retryRequest(IOException exception,
-					int executionCount, HttpContext context) {
-				if (executionCount >= maxRetries + 1) {
-					return false;
-				}
-				if (exception instanceof InterruptedIOException) {
-					return false;
-				}
-				if (exception instanceof UnknownHostException) {
-					return false;
-				}
-				if (exception instanceof ConnectTimeoutException) {
-					return false;
-				}
-				if (exception instanceof SSLException) {
-					return false;
-				}
-				HttpClientContext clientContext = HttpClientContext
-						.adapt(context);
-				HttpRequest request = clientContext.getRequest();
-				boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
-				if (idempotent) {
-					return true;
-				}
-				return false;
-			}
-
-		};
 		responseHandler = new ResponseHandler<String>() {
-			public String handleResponse(final HttpResponse response)
-					throws ClientProtocolException, IOException {
+			public String handleResponse(final HttpResponse response) throws ClientProtocolException, IOException {
 				int status = response.getStatusLine().getStatusCode();
-				System.out.println("status=>" + status);
-				if (status >= HttpStatus.SC_OK
-						&& status < HttpStatus.SC_MULTIPLE_CHOICES) {
+				System.out.println("status=>"+status);
+				if (status >= HttpStatus.SC_OK && status < HttpStatus.SC_MULTIPLE_CHOICES) {
 					HttpEntity entity = response.getEntity();
-
-					Charset defaultCharset = Charset.forName("UTF-8");
-					;
-
-					return entity != null ? EntityUtils.toString(entity,
-							defaultCharset) : null;
+					
+					Charset defaultCharset = Charset.forName("UTF-8");;
+					
+					return entity != null ? EntityUtils.toString(entity, defaultCharset) : null;
 				} else {
-					throw new ClientProtocolException(
-							"Unexpected response status: " + status);
+					throw new ClientProtocolException("Unexpected response status: " + status);
 				}
 			}
 		};
 
 		CustomDynamicDnsResolver dnsResolver = CustomDynamicDnsResolver.INSTANCE;
 		if (dnsMap != null && !dnsMap.isEmpty()) {
-			Iterator<Entry<String, String>> iterator = dnsMap.entrySet()
-					.iterator();
+			Iterator<Entry<String, String>> iterator = dnsMap.entrySet().iterator();
 			try {
 				while (iterator.hasNext()) {
 					Entry<String, String> entry = iterator.next();
@@ -181,68 +130,62 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 			}
 		}
 
-		SSLConnectionSocketFactory sslsf;
-		if (keyStorePath == null || keyStorePath.length() == 0) {
-			sslsf = SSLConnectionSocketFactory.getSocketFactory();
-		} else {
-			if (keyStoreType == null || keyStoreType.length() == 0) {
-				keyStoreType = KeyStore.getDefaultType();
-			}
-			KeyStore myTrustStore = KeyStore.getInstance(keyStoreType);
-			InputStream inputStream = this.getClass().getClassLoader()
-					.getResourceAsStream(keyStorePath);
-			if (keyStorePwd == null) {
-				keyStorePwd = "";
-			}
-			myTrustStore.load(inputStream, keyStorePwd.toCharArray());
-			SSLContext sslContext = SSLContexts.custom().useProtocol(protocol)
-					.loadTrustMaterial(myTrustStore).build();
-			sslsf = new SSLConnectionSocketFactory(sslContext);
-		}
+        SSLConnectionSocketFactory sslsf;
+        if (keyStorePath == null || keyStorePath.length() == 0) {
+            sslsf = SSLConnectionSocketFactory.getSocketFactory();
+        } else {
+            if (keyStoreType == null || keyStoreType.length() == 0) {
+                keyStoreType = KeyStore.getDefaultType();
+            }
+            KeyStore myTrustStore = KeyStore.getInstance(keyStoreType);
+            InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream(keyStorePath);
+            if (keyStorePwd == null) {
+            	keyStorePwd = "";
+            }
+            myTrustStore.load(inputStream, keyStorePwd.toCharArray());
+            SSLContext sslContext = SSLContexts.custom()
+                    .useProtocol(protocol)
+                    .loadTrustMaterial(myTrustStore)
+                    .build();
+            sslsf = new SSLConnectionSocketFactory(sslContext);
+        }
 
-		poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager(
-				RegistryBuilder
-						.<ConnectionSocketFactory> create()
-						.register("http",
-								PlainConnectionSocketFactory.getSocketFactory())
+        poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager(
+				RegistryBuilder.<ConnectionSocketFactory> create()
+						.register("http", PlainConnectionSocketFactory.getSocketFactory())
 						.register("https", sslsf).build(), null, dnsResolver);
-		poolingHttpClientConnectionManager
-				.setDefaultMaxPerRoute(defaultMaxPerRoute);
+		poolingHttpClientConnectionManager.setDefaultMaxPerRoute(defaultMaxPerRoute);
 		poolingHttpClientConnectionManager.setMaxTotal(maxTotal);
 
 		IdleConnectionEvictThread idleConnectionMonitor = new IdleConnectionEvictThread(
 				poolingHttpClientConnectionManager, idleTime);
+		
 
 		ConnectionKeepAliveStrategy connectionKeepAliveStrategy = new CustomConnectionKeepAliveStrategy(
 				keepAliveDuration);
 
-		RequestConfig requestConfig = RequestConfig.custom()
-				.setConnectTimeout(connectTimeout)
+		RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(connectTimeout)
 				.setSocketTimeout(socketTimeout).build();
 
-		schedule = Executors
-				.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
-		future = schedule.scheduleWithFixedDelay(idleConnectionMonitor, 0,
-				evictDelay, TimeUnit.MILLISECONDS);
+		
+		schedule = Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
+		future = schedule.scheduleWithFixedDelay(idleConnectionMonitor, 0, evictDelay, TimeUnit.MILLISECONDS);
 
-		httpClient = HttpClients.custom().setRetryHandler(retryHandler)
-				.setKeepAliveStrategy(connectionKeepAliveStrategy)
-				.setConnectionManager(poolingHttpClientConnectionManager)
+		httpClient = HttpClients.custom().setKeepAliveStrategy(connectionKeepAliveStrategy).setConnectionManager(poolingHttpClientConnectionManager)
 				.setDefaultRequestConfig(requestConfig).build();
+		 
 
-	}
+	} 
 
 	public String post(String uri, List<NameValuePair> list) {
 		return post(uri, list, null);
 	}
-
-	public String post(String uri, List<NameValuePair> list,
-			List<Header> headers) {
+	
+	public String post(String uri, List<NameValuePair> list, List<Header> headers) {
 		String responseBody = null;
 
 		HttpPost httpPost = new HttpPost(uri);
-		UrlEncodedFormEntity entity = new UrlEncodedFormEntity(list,
-				Consts.UTF_8);
+		UrlEncodedFormEntity entity = new UrlEncodedFormEntity(list, Consts.UTF_8);
 		httpPost.setEntity(entity);
 		if (headers != null) {
 			for (Header header : headers) {
@@ -253,8 +196,7 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 		try {
 			responseBody = httpClient.execute(httpPost, responseHandler);
 		} catch (ClientProtocolException e) {
-			log.error("pooling post() method executing ClientProtocolException:"
-					+ e);
+			log.error("pooling post() method executing ClientProtocolException:" + e);
 		} catch (IOException e) {
 			log.error("pooling post() method executing IOException:" + e);
 		} catch (Exception e) {
@@ -264,13 +206,14 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 		return responseBody;
 	}
 
+	
 	public String get(String uri) {
 		return get(uri, null);
 	}
-
+	
 	public String get(String uri, List<Header> headers) {
 		String responseBody = null;
-		HttpGet httpGet = new HttpGet(uri);
+		HttpGet httpGet = new HttpGet(uri); 
 		if (headers != null) {
 			for (Header header : headers) {
 				httpGet.addHeader(header);
@@ -279,8 +222,7 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 		try {
 			responseBody = httpClient.execute(httpGet, responseHandler);
 		} catch (ClientProtocolException e) {
-			log.error("pooling get() method executing ClientProtocolException:"
-					+ e);
+			log.error("pooling get() method executing ClientProtocolException:" + e);
 		} catch (IOException e) {
 			log.error("pooling get() method executing IOException:" + e);
 		} catch (Exception e) {
@@ -288,14 +230,15 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 		}
 		return responseBody;
 	}
+	
+	
 
-	public InputStream getInputStream(String uri)
-			throws ClientProtocolException, IOException {
+
+	public InputStream getInputStream(String uri) throws ClientProtocolException, IOException {
 		HttpGet httpGet = new HttpGet(uri);
 		HttpResponse response = httpClient.execute(httpGet);
 		int status = response.getStatusLine().getStatusCode();
-		if (status >= HttpStatus.SC_OK
-				&& status < HttpStatus.SC_MULTIPLE_CHOICES) {
+		if (status >= HttpStatus.SC_OK && status < HttpStatus.SC_MULTIPLE_CHOICES) { 
 			HttpEntity entity = response.getEntity();
 			return entity.getContent();
 		}
@@ -303,9 +246,14 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 	}
 
 	public void closeHttpClient() {
-		try {
+		try{
 			future.cancel(true);
 			schedule.shutdown();
+		}catch(Exception e){
+			log.error("shutdown ScheduledExecutorService error., " + e);
+		}
+		
+		try {
 			httpClient.close();
 		} catch (IOException e) {
 			log.error("pooling httpclient shutdown IOException, " + e);
@@ -313,15 +261,16 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 			log.error("pooling httpclient shutdown Exception, " + e);
 		}
 	}
+	
+	
 
 	public String getTotalPoolStats() {
 		PoolStats stats = poolingHttpClientConnectionManager.getTotalStats();
 		return stats.toString();
 	}
-
+	
 	public String getPoolStats(String hostname, int port) {
-		PoolStats stats = poolingHttpClientConnectionManager
-				.getStats(new HttpRoute(new HttpHost(hostname, port)));
+		PoolStats stats = poolingHttpClientConnectionManager.getStats(new HttpRoute(new HttpHost(hostname, port)));
 		return stats.toString();
 	}
 
@@ -357,23 +306,19 @@ public class PoolingHttpClientImpl implements CustomHttpClient {
 		this.socketTimeout = socketTimeout;
 	}
 
-	public void setKeyStorePath(String keyStorePath) {
-		this.keyStorePath = keyStorePath;
-	}
+    public void setKeyStorePath(String keyStorePath) {
+        this.keyStorePath = keyStorePath;
+    }
 
-	public void setKeyStorePwd(String keyStorePwd) {
-		this.keyStorePwd = keyStorePwd;
-	}
+    public void setKeyStorePwd(String keyStorePwd) {
+        this.keyStorePwd = keyStorePwd;
+    }
 
-	public void setKeyStoreType(String keyStoreType) {
-		this.keyStoreType = keyStoreType;
-	}
+    public void setKeyStoreType(String keyStoreType) {
+        this.keyStoreType = keyStoreType;
+    }
 
-	public void setProtocol(String protocol) {
-		this.protocol = protocol;
-	}
-
-	public void setMaxRetries(int maxRetries) {
-		this.maxRetries = maxRetries;
-	}
+    public void setProtocol(String protocol) {
+        this.protocol = protocol;
+    }
 }
