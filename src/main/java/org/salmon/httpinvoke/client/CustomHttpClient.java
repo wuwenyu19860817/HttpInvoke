@@ -11,8 +11,8 @@ import org.apache.http.client.ClientProtocolException;
 
 /**
  * 自定义httpclient接口
- * @author salmon
- *
+ * @author salmon test
+ * 
  */
 public interface CustomHttpClient {
 	/**
