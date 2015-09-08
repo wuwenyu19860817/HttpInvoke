@@ -37,7 +37,7 @@ public class Main {
 
 		customHttpClient.get("http://www.baidu.com");
 		customHttpClient.get("http://www.sina.com");
-		customHttpClient.get("http://ddfsdfasdfasdf:8080");
+//		customHttpClient.get("http://ddfsdfasdfasdf:8080");
 		System.out.println(customHttpClient.get("http://123.57.3.169"));
 		System.out.println(customHttpClient.getTotalPoolStats());
 	}

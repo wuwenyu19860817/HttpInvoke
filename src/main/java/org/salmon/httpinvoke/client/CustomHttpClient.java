@@ -77,7 +77,7 @@ public interface CustomHttpClient {
 	String getPoolStats(String hostname, int port);
 	
 	/**
-	 * 
+	 * 完全消费掉输入流InputStream 调用close方法 可以复用连接(InputStream其实是代理对象非底层socket的getInputStream得到的)
 	 * @param uri address
 	 * @return inputStream
 	 */
